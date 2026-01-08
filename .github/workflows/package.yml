@@ -19,9 +19,22 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Base Image (local only)
-        run: |
-          docker build -f Dockerfiles/base.Dockerfile -t retroarch-base:latest .
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and Push Base Image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./Dockerfiles/base.Dockerfile
+          push: true
+          tags: ghcr.io/lnora/retroarch-tg5040/retroarch-base:latest
+          cache-from: type=registry,ref=ghcr.io/lnora/retroarch-tg5040/retroarch-base:buildcache
+          cache-to: type=registry,ref=ghcr.io/lnora/retroarch-tg5040/retroarch-base:buildcache,mode=max
 
 
   build-retroarch:
@@ -31,10 +44,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Build RetroArch
         run: |
           docker build -f Dockerfiles/retroarch.Dockerfile \
-            --build-arg BASE_IMAGE=retroarch-base:latest \
+            --build-arg BASE_IMAGE=ghcr.io/lnora/retroarch-tg5040/retroarch-base:latest \
             -t retroarch-tg5040:latest .
           mkdir -p build/RetroArch/lib
           docker create --name retroarch-temp retroarch-tg5040:latest
@@ -73,7 +93,7 @@ jobs:
         run: |
           mkdir -p build/RetroArch/cores/info
           docker build -f Dockerfiles/cores/${{ matrix.core }}.Dockerfile \
-            --build-arg BASE_IMAGE=ghcr.io/unclejunvip/retroarch-tg5040/retroarch-base:latest \
+            --build-arg BASE_IMAGE=ghcr.io/lnora/retroarch-tg5040/retroarch-base:latest \
             -t retroarch-core-${{ matrix.core }}:latest .
           docker create --name core-temp-${{ matrix.core }} retroarch-core-${{ matrix.core }}:latest
           docker cp core-temp-${{ matrix.core }}:/home/builder/out/. build/RetroArch/cores/ 2>/dev/null || true
